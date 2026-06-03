@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, ViewStyle } from 'react-native';
-import { Colors } from '../../constants/colors';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Font } from '../../constants/typography';
 import { Icon, IconName } from './Icon';
+import { useTheme, ThemeTokens } from '../../lib/theme';
 
 interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'ghost' | 'success' | 'light';
@@ -22,22 +22,25 @@ const SIZES = {
   lg: { height: 54, paddingH: 24, fontSize: 17 },
 };
 
-const VARIANTS = {
-  primary:   { bg: Colors.blue800, color: Colors.white,  border: 'transparent' as const },
-  secondary: { bg: Colors.white,   color: Colors.blue800, border: Colors.n40 },
-  ghost:     { bg: 'transparent',  color: Colors.blue700, border: 'transparent' as const },
-  success:   { bg: Colors.green,   color: Colors.white,  border: 'transparent' as const },
-  light:     { bg: Colors.white,   color: Colors.blue800, border: 'transparent' as const },
-};
+function getVariants(theme: ThemeTokens) {
+  return {
+    primary:   { bg: theme.blue800, color: theme.white,   border: 'transparent' as const },
+    secondary: { bg: theme.surface, color: theme.blue700, border: theme.borderMuted },
+    ghost:     { bg: 'transparent', color: theme.blue700, border: 'transparent' as const },
+    success:   { bg: theme.green,   color: theme.white,   border: 'transparent' as const },
+    light:     { bg: theme.surface, color: theme.blue800, border: 'transparent' as const },
+  };
+}
 
 export function Button({ variant = 'primary', size = 'md', children, onPress, disabled, full, leadingIcon, trailingIcon, style }: ButtonProps) {
   const [pressed, setPressed] = useState(false);
+  const theme = useTheme();
   const s = SIZES[size];
-  const v = VARIANTS[variant];
+  const v = getVariants(theme)[variant];
   const bgColor = pressed && !disabled
-    ? variant === 'primary' ? Colors.blue900
+    ? variant === 'primary' ? theme.blue900
     : variant === 'success' ? '#176E3D'
-    : Colors.n20
+    : theme.elevated
     : v.bg;
 
   return (
@@ -49,7 +52,13 @@ export function Button({ variant = 'primary', size = 'md', children, onPress, di
       activeOpacity={0.85}
       style={[
         styles.base,
-        { height: s.height, paddingHorizontal: s.paddingH, backgroundColor: bgColor, borderColor: v.border, borderWidth: v.border !== 'transparent' ? 1.5 : 0 },
+        {
+          height: s.height,
+          paddingHorizontal: s.paddingH,
+          backgroundColor: bgColor,
+          borderColor: v.border,
+          borderWidth: v.border !== 'transparent' ? 1.5 : 0,
+        },
         full && styles.full,
         disabled && styles.disabled,
         style,
@@ -63,10 +72,7 @@ export function Button({ variant = 'primary', size = 'md', children, onPress, di
 }
 
 const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 8,
-  },
+  base: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 8 },
   full: { width: '100%' },
   label: { fontFamily: Font.semiBold, lineHeight: 20 },
   disabled: { opacity: 0.4 },

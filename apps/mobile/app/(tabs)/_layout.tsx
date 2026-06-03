@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
-import { Colors } from '../../constants/colors';
 import { Font } from '../../constants/typography';
 import { Icon } from '../../components/ui/Icon';
+import { useTheme } from '../../lib/theme';
 
 function TabBarComponent({ state, descriptors, navigation }: any) {
   const router = useRouter();
+  const theme = useTheme();
 
   const leftTabs = state.routes.slice(0, 2);
   const rightTabs = state.routes.slice(2, 4);
@@ -16,6 +17,7 @@ function TabBarComponent({ state, descriptors, navigation }: any) {
     const label = options.tabBarLabel ?? options.title ?? route.name;
     const icon = options.tabBarIcon;
     const focused = state.index === index;
+    const color = focused ? theme.blue700 : theme.fgMuted;
 
     return (
       <TouchableOpacity
@@ -24,22 +26,22 @@ function TabBarComponent({ state, descriptors, navigation }: any) {
         style={styles.tab}
         activeOpacity={0.7}
       >
-        {icon && icon({ focused, color: focused ? Colors.blue700 : Colors.n70, size: 23 })}
-        <Text style={[styles.tabLabel, { color: focused ? Colors.blue700 : Colors.n70 }]}>{label}</Text>
+        {icon && icon({ focused, color, size: 23 })}
+        <Text style={[styles.tabLabel, { color }]}>{label}</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
       {leftTabs.map((route: any, i: number) => <TabButton key={route.key} route={route} index={i} />)}
       <View style={styles.fabWrap}>
         <TouchableOpacity
-          style={styles.fab}
+          style={[styles.fab, { borderColor: theme.surface }]}
           onPress={() => router.push('/session/setup')}
           activeOpacity={0.85}
         >
-          <Icon name="play" size={22} color={Colors.white} fill />
+          <Icon name="play" size={22} color="#FFFFFF" fill />
         </TouchableOpacity>
       </View>
       {rightTabs.map((route: any, i: number) => <TabButton key={route.key} route={route} index={i + 2} />)}
@@ -50,16 +52,16 @@ function TabBarComponent({ state, descriptors, navigation }: any) {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: 1, borderTopColor: Colors.n30, backgroundColor: Colors.white,
+    borderTopWidth: 1,
     paddingBottom: 24, paddingTop: 8, paddingHorizontal: 8,
-    shadowColor: '#1F2C37', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 5,
+    shadowColor: '#000000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 5,
   },
   tab: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 6 },
   tabLabel: { fontFamily: Font.semiBold, fontSize: 11 },
   fabWrap: { width: 76, flexShrink: 0, alignItems: 'center' },
   fab: {
-    width: 58, height: 58, borderRadius: 999, backgroundColor: Colors.blue800,
-    borderWidth: 4, borderColor: Colors.white,
+    width: 58, height: 58, borderRadius: 999, backgroundColor: '#1B448B',
+    borderWidth: 4,
     marginTop: -34, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#1B448B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
   },

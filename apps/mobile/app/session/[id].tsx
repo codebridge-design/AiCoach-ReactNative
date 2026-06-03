@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Colors } from '../../constants/colors';
 import { Font } from '../../constants/typography';
 import { Icon } from '../../components/ui/Icon';
 import { Button } from '../../components/ui/Button';
@@ -9,54 +8,34 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { ScoreBar } from '../../components/ui/ScoreBar';
 import { scoreColor, scoreLabel } from '../../lib/score';
-
-// Scripted mock questions for the prototype
-const QUESTIONS: Record<string, any[]> = {
-  react: [
-    { text: 'Explain the difference between `useMemo` and `useCallback`. When would reaching for either actually hurt performance?', category: 'technical', concepts: ['memoization', 'referential equality', 'render cost'], minutes: 3 },
-    { text: 'A list re-renders every keystroke in an unrelated input. Walk me through how you would diagnose and fix it.', category: 'technical', concepts: ['React.memo', 'context splitting', 'profiler'], minutes: 4 },
-  ],
-  javascript: [
-    { text: 'Explain the event loop. How do microtasks and macrotasks differ in execution order?', category: 'technical', concepts: ['call stack', 'task queue', 'promises'], minutes: 3 },
-    { text: 'What is a closure, and give a real bug a closure can cause inside a loop.', category: 'technical', concepts: ['scope', 'let vs var', 'captured variables'], minutes: 3 },
-  ],
-  behavioral: [
-    { text: 'Tell me about a time you disagreed with a senior engineer. Use the STAR format.', category: 'behavioral', concepts: ['situation', 'task', 'action', 'result'], minutes: 3 },
-  ],
-  system_design: [
-    { text: 'Design the URL-shortener. Walk me from the API surface down to how you guarantee uniqueness at scale.', category: 'system_design', concepts: ['hashing', 'collision', 'sharding', 'caching'], minutes: 5 },
-  ],
-};
-function getQuestions(topic: string) {
-  return QUESTIONS[topic] ?? QUESTIONS.react;
-}
-
-const FEEDBACKS = [
-  { score: 7.6, score_structure: 8.0, score_technical: 7.5, score_clarity: 7.3, summary: 'Solid grasp of the core distinction and you correctly tied both hooks to referential stability. The example was concrete, but you skipped the cost of memoization itself.', strengths: ['Clearly separated value memoization from function memoization', 'Used a real dependency-array example'], weaknesses: ['Did not mention memoization has its own comparison cost', 'Missed when premature memoization hurts readability'], recommendation: 'Next time, name one case where adding useMemo makes things slower.' },
-  { score: 5.4, score_structure: 5.0, score_technical: 6.2, score_clarity: 5.0, summary: 'You identified the right primitives but the answer wandered. There was a correct idea buried under restarts.', strengths: ['Named the correct underlying mechanism'], weaknesses: ['No clear opening statement', 'Trailed off without a concrete example'], recommendation: 'Lead with a one-sentence answer, then justify it.' },
-  { score: 8.6, score_structure: 9.0, score_technical: 8.5, score_clarity: 8.3, summary: 'Excellent. Structured, technically precise, and you proactively addressed the edge case.', strengths: ['Opened with a crisp thesis', 'Volunteered a tradeoff without prompting'], weaknesses: ['Slightly long — could cut the second example'], recommendation: 'Keep this structure. To go further, quantify impact.' },
-];
+import { apiPost, apiPatch } from '../../lib/api';
+import { useTheme } from '../../lib/theme';
+import type { Question, AnswerFeedback } from '@mockly/shared';
 
 type Phase = 'answering' | 'analyzing' | 'feedback';
 
 export default function InterviewScreen() {
   const router = useRouter();
-  const { id, mode, topic, count } = useLocalSearchParams<{ id: string; mode: string; topic: string; count: string }>();
+  const theme = useTheme();
+  const { id: sessionId, mode, topic, count, firstQuestion: firstQuestionRaw } = useLocalSearchParams<{
+    id: string; mode: string; topic: string; count: string; firstQuestion: string;
+  }>();
   const totalCount = Number(count ?? 8);
-  const questions = Array.from({ length: totalCount }, (_, i) => {
-    const pool = getQuestions(topic ?? 'react');
-    return pool[i % pool.length];
-  });
 
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(() => {
+    try { return JSON.parse(firstQuestionRaw ?? '{}'); } catch { return null; }
+  });
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState('');
   const [phase, setPhase] = useState<Phase>('answering');
   const [seconds, setSeconds] = useState(0);
   const [scores, setScores] = useState<(number | null)[]>([]);
+  const [feedback, setFeedback] = useState<AnswerFeedback | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savedToBank, setSavedToBank] = useState(false);
+  const [isSavingToBank, setIsSavingToBank] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const isVoice = mode === 'voice';
-  const q = questions[index];
-  const fb = FEEDBACKS[index % FEEDBACKS.length];
 
   useEffect(() => {
     const timerId = setInterval(() => setSeconds(s => s + 1), 1000);
@@ -65,34 +44,124 @@ export default function InterviewScreen() {
 
   useEffect(() => { scrollRef.current?.scrollTo({ y: 0, animated: true }); }, [index, phase]);
 
-  const submit = () => {
+  async function submitAnswer() {
+    if (!currentQuestion || !sessionId) return;
+    setIsSubmitting(true);
     setPhase('analyzing');
-    setTimeout(() => setPhase('feedback'), 1700);
-  };
-  const skip = () => advance(null);
-  const advance = (score: number | null) => {
-    const next = score == null ? scores : [...scores, score];
-    setScores(next);
-    if (index + 1 >= totalCount) {
-      const valid = next.filter(s => s != null) as number[];
-      const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : 0;
-      router.replace({ pathname: '/session/result/[sessionId]', params: { sessionId: 'done', avg: avg.toFixed(2), scores: JSON.stringify(next), seconds: String(seconds), topic: topic ?? 'react', answered: String(valid.length) } });
-    } else {
+    try {
+      const res = await apiPost<{ answer: { id: string }; feedback: AnswerFeedback }>('/api/answers', {
+        session_id: sessionId,
+        question_id: currentQuestion.id,
+        text: answer,
+      });
+      setFeedback(res.feedback);
+      setPhase('feedback');
+    } catch {
+      Alert.alert('Error', 'Failed to submit answer. Please try again.');
+      setPhase('answering');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function advance(score: number | null) {
+    const nextScores = score == null ? scores : [...scores, score];
+    setScores(nextScores);
+
+    const isLast = index + 1 >= totalCount;
+    if (isLast) {
+      await endSession(nextScores);
+      return;
+    }
+
+    try {
+      const res = await apiPost<{ question: Question }>('/api/questions/next', {
+        session_id: sessionId,
+        ...(score != null ? { previous_answer_score: score } : {}),
+      });
+      setCurrentQuestion(res.question);
       setIndex(i => i + 1);
       setAnswer('');
+      setFeedback(null);
       setPhase('answering');
+      setSavedToBank(false);
+      setIsSavingToBank(false);
+    } catch {
+      Alert.alert('Error', 'Failed to load next question.');
     }
-  };
+  }
 
+  async function endSession(finalScores: (number | null)[]) {
+    try {
+      const res = await apiPatch<{ session: { readiness_delta: number | null; total_score: number | null } }>(
+        `/api/sessions/${sessionId}/end`,
+        { duration_seconds: seconds }
+      );
+      const valid = finalScores.filter(s => s != null) as number[];
+      const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : (res.session.total_score ?? 0);
+      router.replace({
+        pathname: '/session/result/[sessionId]',
+        params: {
+          sessionId: sessionId ?? 'done',
+          avg: avg.toFixed(2),
+          scores: JSON.stringify(finalScores),
+          seconds: String(seconds),
+          topic: topic ?? 'react',
+          answered: String(valid.length),
+          delta: String(res.session.readiness_delta ?? 0),
+        },
+      });
+    } catch {
+      const valid = finalScores.filter(s => s != null) as number[];
+      const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : 0;
+      router.replace({
+        pathname: '/session/result/[sessionId]',
+        params: {
+          sessionId: sessionId ?? 'done',
+          avg: avg.toFixed(2),
+          scores: JSON.stringify(finalScores),
+          seconds: String(seconds),
+          topic: topic ?? 'react',
+          answered: String(valid.length),
+          delta: '0',
+        },
+      });
+    }
+  }
+
+  function skip() { advance(null); }
+
+  async function toggleBank() {
+    if (!currentQuestion || isSavingToBank) return;
+    setIsSavingToBank(true);
+    try {
+      const res = await apiPatch<{ is_template: boolean }>(`/api/questions/${currentQuestion.id}/save-to-bank`);
+      setSavedToBank(res.is_template);
+    } catch {
+      Alert.alert('Error', 'Could not update question. Please try again.');
+    } finally {
+      setIsSavingToBank(false);
+    }
+  }
+
+  if (!currentQuestion) {
+    return (
+      <View style={[styles.outer, { backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={theme.blue700} size="large" />
+      </View>
+    );
+  }
+
+  const q = currentQuestion;
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
   const ss = String(seconds % 60).padStart(2, '0');
 
   return (
-    <View style={styles.outer}>
-      {/* Navy session bar */}
+    <View style={[styles.outer, { backgroundColor: theme.bg }]}>
+      {/* Navy session bar — same in both modes */}
       <View style={styles.sessionBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Icon name="x" size={18} color={Colors.white} />
+          <Icon name="x" size={18} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.timerRow}>
           <Icon name="clock" size={15} color="rgba(255,255,255,0.7)" />
@@ -107,59 +176,85 @@ export default function InterviewScreen() {
       </View>
 
       <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Question */}
         <View style={styles.categoryRow}>
           <Badge tone={q.category === 'behavioral' ? 'info' : q.category === 'system_design' ? 'amber' : 'success'}>
             {q.category === 'system_design' ? 'System Design' : q.category.charAt(0).toUpperCase() + q.category.slice(1)}
           </Badge>
-          <Text style={styles.duration}>~{q.minutes} min</Text>
+          {q.estimated_answer_minutes && (
+            <Text style={[styles.duration, { color: theme.fgMuted }]}>~{q.estimated_answer_minutes} min</Text>
+          )}
         </View>
-        <Text style={styles.questionText}>{q.text}</Text>
-        <View style={styles.concepts}>
-          {q.concepts.map((c: string) => (
-            <View key={c} style={styles.conceptTag}><Text style={styles.conceptText}>{c}</Text></View>
-          ))}
-        </View>
+        <Text style={[styles.questionText, { color: theme.fg }]}>{q.text}</Text>
+        {(q.key_concepts ?? []).length > 0 && (
+          <View style={styles.concepts}>
+            {(q.key_concepts ?? []).map((c: string) => (
+              <View key={c} style={[styles.conceptTag, { backgroundColor: theme.elevated }]}>
+                <Text style={[styles.conceptText, { color: theme.fgMuted }]}>{c}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
-        {/* Inline feedback card */}
-        {phase === 'feedback' && <FeedbackCard fb={fb} />}
+        {phase === 'feedback' && feedback && <FeedbackCard fb={feedback} />}
       </ScrollView>
 
-      {/* Bottom panel */}
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, { borderTopColor: theme.border, backgroundColor: theme.surface }]}>
         {phase === 'answering' && !isVoice && (
           <View style={styles.textAnswerWrap}>
             <TextInput
               value={answer} onChangeText={setAnswer}
-              placeholder="Type your answer…" placeholderTextColor={Colors.n70}
-              multiline style={styles.textarea}
+              placeholder="Type your answer…" placeholderTextColor={theme.fgMuted}
+              multiline
+              style={[styles.textarea, { borderColor: theme.border, backgroundColor: theme.elevated, color: theme.fg }]}
             />
             <View style={styles.textBtns}>
               <Button variant="secondary" leadingIcon="skip" onPress={skip} style={{ flex: 0 }}>Skip</Button>
-              <Button full leadingIcon="send" disabled={!answer.trim()} onPress={submit}>Submit Answer</Button>
+              <Button leadingIcon="send" disabled={!answer.trim()} onPress={submitAnswer} style={{ flex: 1 }}>Submit Answer</Button>
             </View>
           </View>
         )}
         {phase === 'answering' && isVoice && (
-          <VoicePanel onSkip={skip} onSubmit={submit} />
+          <VoicePanel onSkip={skip} onSubmit={submitAnswer} sessionId={sessionId ?? ''} questionId={q.id} onFeedback={(fb) => { setFeedback(fb); setPhase('feedback'); }} />
         )}
         {phase === 'analyzing' && (
           <View style={styles.analyzing}>
-            <ActivityIndicator color={Colors.blue700} size="small" />
-            <Text style={styles.analyzingText}>Analyzing your answer…</Text>
+            <ActivityIndicator color={theme.blue700} size="small" />
+            <Text style={[styles.analyzingText, { color: theme.blue700 }]}>Analyzing your answer…</Text>
           </View>
         )}
-        {phase === 'feedback' && (
-          <Button full trailingIcon={index + 1 >= totalCount ? 'check' : 'arrowRight'} onPress={() => advance(fb.score)}>
-            {index + 1 >= totalCount ? 'See Results' : 'Next Question'}
-          </Button>
+        {phase === 'feedback' && feedback && (
+          <>
+            <TouchableOpacity
+              onPress={toggleBank}
+              disabled={isSavingToBank}
+              style={[bkStyles.btn, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            >
+              {isSavingToBank
+                ? <ActivityIndicator size="small" color={theme.blue700} />
+                : <Icon name={savedToBank ? 'bookmarkFilled' : 'bookmark'} size={18} color={savedToBank ? theme.blue700 : theme.fgMuted} />
+              }
+              <Text style={[bkStyles.label, { color: savedToBank ? theme.blue700 : theme.fgMuted }]}>
+                {savedToBank ? 'Saved to Bank' : 'Save to Question Bank'}
+              </Text>
+            </TouchableOpacity>
+            <Button full trailingIcon={index + 1 >= totalCount ? 'check' : 'arrowRight'} onPress={() => advance(feedback.score)}>
+              {index + 1 >= totalCount ? 'See Results' : 'Next Question'}
+            </Button>
+          </>
         )}
       </View>
     </View>
   );
 }
 
-function VoicePanel({ onSkip, onSubmit }: { onSkip: () => void; onSubmit: () => void }) {
+function VoicePanel({ onSkip, onSubmit, sessionId, questionId, onFeedback }: {
+  onSkip: () => void;
+  onSubmit: () => void;
+  sessionId: string;
+  questionId: string;
+  onFeedback: (fb: AnswerFeedback) => void;
+}) {
+  const theme = useTheme();
   const [recording, setRecording] = useState(false);
   const [t, setT] = useState(0);
   useEffect(() => {
@@ -173,23 +268,31 @@ function VoicePanel({ onSkip, onSubmit }: { onSkip: () => void; onSubmit: () => 
     <View style={vStyles.wrap}>
       {recording && (
         <View style={vStyles.recRow}>
-          <View style={vStyles.recDot} />
-          <Text style={vStyles.recTimer}>{mm}:{ss}</Text>
+          <View style={[vStyles.recDot, { backgroundColor: theme.red }]} />
+          <Text style={[vStyles.recTimer, { color: theme.fg }]}>{mm}:{ss}</Text>
         </View>
       )}
-      {!recording && t === 0 && <Text style={vStyles.hint}>Tap to record your spoken answer</Text>}
+      {!recording && t === 0 && <Text style={[vStyles.hint, { color: theme.fgMuted }]}>Tap to record your spoken answer</Text>}
       <View style={vStyles.btns}>
-        {(recording || t > 0) && <TouchableOpacity onPress={onSkip}><Text style={vStyles.skipText}>Skip</Text></TouchableOpacity>}
+        {(recording || t > 0) && (
+          <TouchableOpacity onPress={onSkip}>
+            <Text style={[vStyles.skipText, { color: theme.fgMuted }]}>Skip</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           onPress={() => setRecording(r => !r)}
-          style={[vStyles.micBtn, recording && vStyles.micBtnRecording]}
+          style={[vStyles.micBtn, recording && { backgroundColor: theme.red }]}
         >
           {recording
             ? <View style={vStyles.stopSquare} />
-            : <Icon name="mic" size={26} color={Colors.white} />
+            : <Icon name="mic" size={26} color="#FFFFFF" />
           }
         </TouchableOpacity>
-        {(t > 0 && !recording) && <TouchableOpacity onPress={onSubmit}><Text style={vStyles.submitText}>Submit</Text></TouchableOpacity>}
+        {(t > 0 && !recording) && (
+          <TouchableOpacity onPress={onSubmit}>
+            <Text style={[vStyles.submitText, { color: theme.blue700 }]}>Submit</Text>
+          </TouchableOpacity>
+        )}
         {recording && <View style={{ width: 40 }} />}
       </View>
     </View>
@@ -199,25 +302,25 @@ function VoicePanel({ onSkip, onSubmit }: { onSkip: () => void; onSubmit: () => 
 const vStyles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: 12 },
   recRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  recDot: { width: 9, height: 9, borderRadius: 999, backgroundColor: Colors.red },
-  recTimer: { fontFamily: Font.bold, fontSize: 15, color: Colors.n100 },
-  hint: { fontFamily: Font.regular, fontSize: 13, color: Colors.n70 },
+  recDot: { width: 9, height: 9, borderRadius: 999 },
+  recTimer: { fontFamily: Font.bold, fontSize: 15 },
+  hint: { fontFamily: Font.regular, fontSize: 13 },
   btns: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  skipText: { fontFamily: Font.semiBold, fontSize: 14, color: Colors.n70 },
-  micBtn: { width: 64, height: 64, borderRadius: 999, backgroundColor: Colors.blue800, alignItems: 'center', justifyContent: 'center' },
-  micBtnRecording: { backgroundColor: Colors.red },
-  stopSquare: { width: 22, height: 22, borderRadius: 5, backgroundColor: Colors.white },
-  submitText: { fontFamily: Font.bold, fontSize: 14, color: Colors.blue700 },
+  skipText: { fontFamily: Font.semiBold, fontSize: 14 },
+  micBtn: { width: 64, height: 64, borderRadius: 999, backgroundColor: '#1B448B', alignItems: 'center', justifyContent: 'center' },
+  stopSquare: { width: 22, height: 22, borderRadius: 5, backgroundColor: '#FFFFFF' },
+  submitText: { fontFamily: Font.bold, fontSize: 14 },
 });
 
-function FeedbackCard({ fb }: { fb: typeof FEEDBACKS[0] }) {
+function FeedbackCard({ fb }: { fb: AnswerFeedback }) {
+  const theme = useTheme();
   const col = scoreColor(fb.score);
   return (
     <View style={fbStyles.wrap}>
       <View style={fbStyles.header}>
-        <Icon name="sparkle" size={16} color={Colors.blue700} fill />
-        <Text style={fbStyles.headerText}>AI Feedback</Text>
-        <View style={fbStyles.headerLine} />
+        <Icon name="sparkle" size={16} color={theme.blue700} fill />
+        <Text style={[fbStyles.headerText, { color: theme.fgMuted }]}>AI Feedback</Text>
+        <View style={[fbStyles.headerLine, { backgroundColor: theme.border }]} />
       </View>
       <Card padding={16}>
         <View style={fbStyles.scoreRow}>
@@ -226,36 +329,39 @@ function FeedbackCard({ fb }: { fb: typeof FEEDBACKS[0] }) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[fbStyles.scoreLabel, { color: col }]}>{scoreLabel(fb.score)}</Text>
-            <Text style={fbStyles.summary}>{fb.summary}</Text>
+            <Text style={[fbStyles.summary, { color: theme.fgMuted }]}>{fb.feedback_summary}</Text>
           </View>
         </View>
-        <View style={fbStyles.bars}>
+        <View style={[fbStyles.bars, { borderTopColor: theme.border, borderBottomColor: theme.border }]}>
           <ScoreBar label="Structure" value={fb.score_structure} />
           <ScoreBar label="Technical" value={fb.score_technical} />
           <ScoreBar label="Clarity" value={fb.score_clarity} />
         </View>
-        <FbList tone="success" title="Strengths" items={fb.strengths} />
-        <FbList tone="amber" title="To improve" items={fb.weaknesses} />
-        <View style={fbStyles.rec}>
-          <Icon name="sparkle" size={16} color={Colors.blue700} fill />
-          <Text style={fbStyles.recText}>{fb.recommendation}</Text>
-        </View>
+        {fb.feedback_strengths.length > 0 && <FbList tone="success" title="Strengths" items={fb.feedback_strengths} />}
+        {fb.feedback_weaknesses.length > 0 && <FbList tone="amber" title="To improve" items={fb.feedback_weaknesses} />}
+        {fb.ai_recommendation && (
+          <View style={[fbStyles.rec, { backgroundColor: theme.accentSoft }]}>
+            <Icon name="sparkle" size={16} color={theme.blue700} fill />
+            <Text style={[fbStyles.recText, { color: theme.fg }]}>{fb.ai_recommendation}</Text>
+          </View>
+        )}
       </Card>
     </View>
   );
 }
 
 function FbList({ tone, title, items }: { tone: 'success' | 'amber'; title: string; items: string[] }) {
-  const col = tone === 'success' ? Colors.green : Colors.amber;
+  const theme = useTheme();
+  const col = tone === 'success' ? theme.green : theme.amber;
   return (
     <View style={fbStyles.listWrap}>
-      <Text style={fbStyles.listTitle}>{title}</Text>
+      <Text style={[fbStyles.listTitle, { color: theme.fg }]}>{title}</Text>
       {items.map((it, i) => (
         <View key={i} style={fbStyles.listRow}>
           <View style={[fbStyles.listDot, { backgroundColor: col + '33' }]}>
             <Icon name={tone === 'success' ? 'check' : 'target'} size={11} color={col} strokeWidth={2.6} />
           </View>
-          <Text style={fbStyles.listText}>{it}</Text>
+          <Text style={[fbStyles.listText, { color: theme.fg }]}>{it}</Text>
         </View>
       ))}
     </View>
@@ -265,45 +371,50 @@ function FbList({ tone, title, items }: { tone: 'success' | 'amber'; title: stri
 const fbStyles = StyleSheet.create({
   wrap: { marginTop: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  headerText: { fontFamily: Font.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.66, color: Colors.n70 },
-  headerLine: { flex: 1, height: 1, backgroundColor: Colors.n30 },
+  headerText: { fontFamily: Font.bold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.66 },
+  headerLine: { flex: 1, height: 1 },
   scoreRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 14 },
   scoreTile: { width: 58, height: 58, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   scoreNum: { fontFamily: Font.extraBold, fontSize: 24 },
   scoreLabel: { fontFamily: Font.bold, fontSize: 15 },
-  summary: { fontFamily: Font.regular, fontSize: 13, color: Colors.n70, marginTop: 2, lineHeight: 18 },
-  bars: { gap: 10, paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.n30, marginBottom: 4 },
+  summary: { fontFamily: Font.regular, fontSize: 13, marginTop: 2, lineHeight: 18 },
+  bars: { gap: 10, paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, marginBottom: 4 },
   listWrap: { marginTop: 12 },
-  listTitle: { fontFamily: Font.bold, fontSize: 13, color: Colors.n100, marginBottom: 7 },
+  listTitle: { fontFamily: Font.bold, fontSize: 13, marginBottom: 7 },
   listRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', marginBottom: 7 },
   listDot: { width: 18, height: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
-  listText: { flex: 1, fontFamily: Font.regular, fontSize: 13.5, color: Colors.n100, lineHeight: 19 },
-  rec: { flexDirection: 'row', gap: 9, marginTop: 12, padding: 12, backgroundColor: 'rgba(1,89,166,0.07)', borderRadius: 10, alignItems: 'flex-start' },
-  recText: { flex: 1, fontFamily: Font.regular, fontSize: 13, color: Colors.n100, lineHeight: 19 },
+  listText: { flex: 1, fontFamily: Font.regular, fontSize: 13.5, lineHeight: 19 },
+  rec: { flexDirection: 'row', gap: 9, marginTop: 12, padding: 12, borderRadius: 10, alignItems: 'flex-start' },
+  recText: { flex: 1, fontFamily: Font.regular, fontSize: 13, lineHeight: 19 },
 });
 
 const styles = StyleSheet.create({
-  outer: { flex: 1, backgroundColor: Colors.n10 },
-  sessionBar: { backgroundColor: Colors.blue800, paddingTop: 56, paddingBottom: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  outer: { flex: 1 },
+  sessionBar: { backgroundColor: '#1B448B', paddingTop: 56, paddingBottom: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   closeBtn: { width: 32, height: 32, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timer: { fontFamily: Font.semiBold, fontSize: 14, color: Colors.white },
+  timer: { fontFamily: Font.semiBold, fontSize: 14, color: '#FFFFFF' },
   progress: { fontFamily: Font.bold, fontSize: 14, color: 'rgba(255,255,255,0.85)' },
-  dots: { backgroundColor: Colors.blue800, flexDirection: 'row', gap: 5, paddingHorizontal: 16, paddingBottom: 14 },
+  dots: { backgroundColor: '#1B448B', flexDirection: 'row', gap: 5, paddingHorizontal: 16, paddingBottom: 14 },
   dot: { flex: 1, height: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)' },
   dotActive: { backgroundColor: '#5BC98A' },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 8 },
   categoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  duration: { fontFamily: Font.regular, fontSize: 12, color: Colors.n70 },
-  questionText: { fontFamily: Font.bold, fontSize: 21, lineHeight: 29, color: Colors.n100 },
+  duration: { fontFamily: Font.regular, fontSize: 12 },
+  questionText: { fontFamily: Font.bold, fontSize: 21, lineHeight: 29 },
   concepts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14 },
-  conceptTag: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.n20 },
-  conceptText: { fontFamily: Font.semiBold, fontSize: 11.5, color: Colors.n70 },
-  bottom: { borderTopWidth: 1, borderTopColor: Colors.n30, backgroundColor: Colors.white, padding: 14, gap: 10 },
+  conceptTag: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  conceptText: { fontFamily: Font.semiBold, fontSize: 11.5 },
+  bottom: { borderTopWidth: 1, padding: 14, gap: 10 },
   textAnswerWrap: { gap: 10 },
-  textarea: { width: '100%', minHeight: 84, maxHeight: 120, borderWidth: 1, borderColor: Colors.n30, borderRadius: 10, padding: 11, fontFamily: Font.regular, fontSize: 15, lineHeight: 21, color: Colors.n100 },
+  textarea: { width: '100%', minHeight: 84, maxHeight: 120, borderWidth: 1, borderRadius: 10, padding: 11, fontFamily: Font.regular, fontSize: 15, lineHeight: 21 },
   textBtns: { flexDirection: 'row', gap: 10 },
   analyzing: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 84 },
-  analyzingText: { fontFamily: Font.semiBold, fontSize: 15, color: Colors.blue700 },
+  analyzingText: { fontFamily: Font.semiBold, fontSize: 15 },
+});
+
+const bkStyles = StyleSheet.create({
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 8, borderWidth: 1.5, width: '100%' },
+  label: { fontFamily: Font.semiBold, fontSize: 14 },
 });

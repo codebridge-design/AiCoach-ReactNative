@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
-import { Colors } from '../../constants/colors';
 import { Font } from '../../constants/typography';
 import { scoreColor } from '../../lib/score';
+import { useTheme } from '../../lib/theme';
 
 interface ScoreBarProps {
   label: string;
@@ -11,6 +11,7 @@ interface ScoreBarProps {
 }
 
 export function ScoreBar({ label, value, animate = true }: ScoreBarProps) {
+  const theme = useTheme();
   const pct = Math.max(0, Math.min(1, value / 10));
   const width = useRef(new Animated.Value(animate ? 0 : pct)).current;
 
@@ -26,10 +27,10 @@ export function ScoreBar({ label, value, animate = true }: ScoreBarProps) {
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, { color: theme.fg }]}>{label}</Text>
         <Text style={[styles.value, { color: col }]}>{value.toFixed(1)}</Text>
       </View>
-      <View style={styles.track}>
+      <View style={[styles.track, { backgroundColor: theme.elevated }]}>
         <Animated.View style={[styles.fill, { width: barWidth, backgroundColor: col }]} />
       </View>
     </View>
@@ -39,8 +40,8 @@ export function ScoreBar({ label, value, animate = true }: ScoreBarProps) {
 const styles = StyleSheet.create({
   container: { gap: 6 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  label: { fontFamily: Font.semiBold, fontSize: 13, color: Colors.n100 },
+  label: { fontFamily: Font.semiBold, fontSize: 13 },
   value: { fontFamily: Font.bold, fontSize: 13 },
-  track: { height: 7, borderRadius: 999, backgroundColor: Colors.n20, overflow: 'hidden' },
+  track: { height: 7, borderRadius: 999, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 999 },
 });

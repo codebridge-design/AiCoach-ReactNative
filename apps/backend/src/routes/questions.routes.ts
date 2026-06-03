@@ -12,13 +12,13 @@ router.post('/next', authMiddleware, validate(NextQuestionSchema), async (req: a
   const { data: session } = await supabase.from('sessions').select('*').eq('id', session_id).eq('user_id', req.userId).single();
   if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
 
-  const { data: prevQuestions } = await supabase.from('questions').select('topic, order_index').eq('session_id', session_id).order('order_index');
-  const prevTopics = (prevQuestions ?? []).map((q: any) => q.topic);
+  const { data: prevQuestions } = await supabase.from('questions').select('text, order_index').eq('session_id', session_id).order('order_index');
+  const previousQuestions = (prevQuestions ?? []).map((q: any) => q.text as string);
   const nextIndex = (prevQuestions?.length ?? 0);
 
   const q = await generateQuestion({
     role: session.role, level: session.level, topic: session.topic,
-    previousTopics: prevTopics, lastScore: previous_answer_score,
+    mode: session.mode, previousQuestions, lastScore: previous_answer_score,
   });
 
   const { data: question } = await supabase.from('questions').insert({
@@ -56,6 +56,33 @@ router.get('/bank', authMiddleware, validate(QuestionBankQuerySchema, 'query'), 
   const { data, count, error } = await q;
   if (error) { res.status(400).json({ error: error.message }); return; }
   res.json({ questions: data, total: count });
+});
+
+router.patch('/:id/save-to-bank', authMiddleware, async (req: any, res) => {
+  const { data: question } = await supabase
+    .from('questions')
+    .select('id, is_template, session_id')
+    .eq('id', req.params.id)
+    .single();
+
+  if (!question) { res.status(404).json({ error: 'Question not found' }); return; }
+
+  if (question.session_id) {
+    const { data: session } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('id', question.session_id)
+      .eq('user_id', req.userId)
+      .single();
+    if (!session) { res.status(403).json({ error: 'Forbidden' }); return; }
+  }
+
+  const newValue = !question.is_template;
+  const { error } = await supabase
+    .from('questions').update({ is_template: newValue }).eq('id', req.params.id);
+  if (error) { res.status(400).json({ error: error.message }); return; }
+
+  res.json({ question_id: req.params.id, is_template: newValue });
 });
 
 export default router;

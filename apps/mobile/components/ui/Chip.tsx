@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Colors } from '../../constants/colors';
 import { Font } from '../../constants/typography';
+import { useTheme } from '../../lib/theme';
 
 interface ChipProps {
   active?: boolean;
@@ -10,15 +10,16 @@ interface ChipProps {
 }
 
 export function Chip({ active, onPress, children }: ChipProps) {
+  const theme = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
       style={[
         styles.chip,
-        { backgroundColor: active ? Colors.blue800 : Colors.white, borderColor: active ? Colors.blue800 : Colors.n40 },
+        { backgroundColor: active ? theme.blue800 : theme.surface, borderColor: active ? theme.blue800 : theme.borderMuted },
       ]}
     >
-      <Text style={[styles.text, { color: active ? Colors.white : Colors.n100 }]}>{children}</Text>
+      <Text style={[styles.text, { color: active ? theme.white : theme.fg }]}>{children}</Text>
     </TouchableOpacity>
   );
 }

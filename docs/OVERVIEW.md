@@ -188,10 +188,12 @@ apps/mobile/
 │   │   ├── analytics.tsx         # Progress graphs + readiness score
 │   │   └── profile.tsx           # User profile settings
 │   ├── session/
-│   │   ├── setup.tsx             # Mode + topic selection
-│   │   ├── [id].tsx              # Active interview screen
-│   │   └── result/[id].tsx       # End screen with score breakdown
-│   └── _layout.tsx               # Root layout (auth guard)
+│   │   ├── setup.tsx             # Mode + topic selection → POST /api/sessions
+│   │   ├── [id].tsx              # Active interview (real Groq questions + AI feedback)
+│   │   └── result/[id].tsx       # End screen with real readiness_delta
+│   ├── questions-bank.tsx        # Browse question bank (GET /api/questions/bank)
+│   ├── settings.tsx              # Edit name/role/level (PUT /api/auth/profile) + preferences
+│   └── _layout.tsx               # Root layout (auth guard, profile fetch on login)
 ├── components/
 │   ├── ui/                       # Reusable primitives (Button, Card, Badge…)
 │   ├── session/
@@ -221,7 +223,8 @@ apps/mobile/
 │   ├── supabase.ts               # Supabase client init
 │   ├── api.ts                    # Fetch wrapper with auth headers
 │   ├── queryClient.ts            # React Query client config
-│   └── websocket.ts              # WebSocket client for streaming feedback
+│   ├── hooks.ts                  # React Query hooks (useProfile, useAnalyticsSummary, etc.)
+│   └── websocket.ts              # WebSocket client for streaming feedback (future)
 ├── constants/
 │   ├── roles.ts                  # Role + level enum values
 │   └── topics.ts                 # Question category constants
@@ -789,6 +792,37 @@ interface SettingsState {
 
 Persisted via `zustand/middleware` `persist` with `AsyncStorage`.
 
+### Theme System (`lib/theme.ts`)
+
+All UI theming is driven by the `useTheme()` hook, which reads `settingsStore.darkMode` and returns a `ThemeTokens` object. Components and screens import `useTheme()` directly — no React Context needed.
+
+```typescript
+// Light / dark token sets
+const LIGHT_THEME: ThemeTokens = { bg: '#FDFDFD', surface: '#FFFFFF', elevated: '#ECF1F6', ... };
+const DARK_THEME: ThemeTokens  = { bg: '#0D1825', surface: '#152030', elevated: '#1C2E42', ... };
+
+export function useTheme(): ThemeTokens {
+  const isDark = useSettingsStore(s => s.darkMode);
+  return isDark ? DARK_THEME : LIGHT_THEME;
+}
+```
+
+**Token anatomy:**
+
+| Token | Light | Dark | Usage |
+|---|---|---|---|
+| `bg` | `#FDFDFD` | `#0D1825` | Screen background |
+| `surface` | `#FFFFFF` | `#152030` | Card, list item, input bg |
+| `elevated` | `#ECF1F6` | `#1C2E42` | Icon wells, tags, subtle fills |
+| `border` | `#E3E9ED` | `#243344` | Card borders, dividers |
+| `borderMuted` | `#D1D8DD` | `#2C3F52` | Chip/toggle/input borders |
+| `fg` | `#1F2C37` | `#E2EBF3` | Primary text |
+| `fgMuted` | `#78828A` | `#6B8299` | Secondary text, captions |
+| `blue700` | `#0159A6` | `#4BAEE8` | Primary accent (brighter in dark) |
+| `blue800` | `#1B448B` | `#1B448B` | Navy hero — identical in both modes |
+
+Navy hero sections (`blue800` backgrounds) are intentionally the same color in both modes — they serve as strong brand anchors and have sufficient contrast in either context.
+
 ### React Query Strategy
 
 | Query Key | Stale Time | Cache Time | Invalidation Trigger |
@@ -1093,4 +1127,4 @@ The session question count (5–15) is set at session creation and stored only i
 
 ---
 
-*Last updated: 2026-06-01 — Mockly v1.0 architecture*
+*Last updated: 2026-06-03 — Phase 11 complete: dark mode implemented across all screens and UI primitives*

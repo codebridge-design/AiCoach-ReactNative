@@ -99,15 +99,46 @@ Design reference: `/design/` (Mockly.html, MocklyKit.jsx, MocklyTabs.jsx, Mockly
 
 ---
 
+## Phase 10 — Backend Integration (apps/mobile) ✅
+
+- [x] `lib/hooks.ts` — React Query hooks: `useProfile`, `useAnalyticsSummary`, `useAnalyticsHistory`, `useWeakTopics`, `useSessions`, `useQuestionBank`
+- [x] `app/_layout.tsx` — profile fetch from `GET /api/auth/profile` on auth state change → `authStore.setProfile()`
+- [x] `app/(tabs)/index.tsx` — real data: profile from authStore, readiness/streak from analytics summary, recent sessions, weak topics
+- [x] `app/(tabs)/analytics.tsx` — real readiness ring, trend chart from daily snapshots, topic mastery from weak-topics
+- [x] `app/(tabs)/history.tsx` — real sessions list, date grouping (Today/Yesterday/Earlier) computed client-side
+- [x] `app/(tabs)/profile.tsx` — real profile + analytics summary; `ToggleRow` wired to `settingsStore` (persisted)
+- [x] `app/session/setup.tsx` — "Start Interview" calls `POST /api/sessions`, navigates with `session_id` + `first_question`
+- [x] `app/session/[id].tsx` — real AI questions via Groq; `POST /api/answers` for feedback; `POST /api/questions/next` per turn; `PATCH /api/sessions/:id/end` on finish
+- [x] `app/session/result/[sessionId].tsx` — uses real `readiness_delta` from session end response
+- [x] `app/questions-bank.tsx` — new screen, topic filter chips, `GET /api/questions/bank`
+- [x] `app/settings.tsx` — new screen, edit name/role/level → `PUT /api/auth/profile`, daily reminder toggle, dark mode placeholder
+
+---
+
+## Phase 11 — Dark Mode ✅
+
+- [x] `lib/theme.ts` — `ThemeTokens` interface + `LIGHT_THEME` / `DARK_THEME` token sets + `useTheme()` hook (reads `settingsStore.darkMode`)
+- [x] All UI primitives updated: `Button`, `Card`, `Badge`, `Chip`, `ListRow`, `SectionHeader`, `ScoreBar` — fully theme-aware via `useTheme()`
+- [x] `app/_layout.tsx` — `StatusBar` barStyle switches with theme (`dark-content` / `light-content`)
+- [x] `app/(tabs)/_layout.tsx` — custom `TabBarComponent` themed (surface bg, muted/accent tab colors)
+- [x] All tab screens updated: `index.tsx`, `analytics.tsx`, `history.tsx`, `profile.tsx`
+- [x] All session screens updated: `session/setup.tsx`, `session/[id].tsx`, `session/result/[sessionId].tsx`
+- [x] Standalone screens updated: `settings.tsx`, `questions-bank.tsx`
+- [x] Navy hero sections (`blue800` #1B448B) intentionally unchanged in both modes — strong brand anchor
+- [x] Dark palette: bg `#0D1825` · surface `#152030` · elevated `#1C2E42` · fg `#E2EBF3` · blue accent `#4BAEE8`
+- [x] Toggle in Profile → Dark mode row and Settings → Appearance section — both functional
+
+---
+
 ## Pending / Next Steps
 
 - [ ] **Supabase setup** — run SQL schema from `docs/OVERVIEW.md` §5, enable Auth, create storage buckets
-- [ ] **Environment files** — copy `.env.example` → `.env` and fill in real keys (Supabase, Groq)
-- [ ] **Wire React Query hooks** — replace mock data in tab screens with `apiGet` calls
-- [ ] **expo-av voice recording** — wire `useVoiceRecorder` hook in `VoicePanel` component
-- [ ] **Push notifications** — register Expo push token, save to `profiles.expo_push_token`
-- [ ] **Offline SQLite cache** — implement local session cache for History tab
+- [ ] **Environment files** — copy `apps/backend/.env.example` → `apps/backend/.env` and fill in real keys (Supabase service role, Groq)
+- [ ] **expo-av voice recording** — wire actual audio recording in `VoicePanel` using `expo-av` (`Audio.Recording`)
+- [ ] **Push notifications** — register Expo push token on launch, save to `profiles.expo_push_token`
+- [ ] **Offline SQLite cache** — local session cache for History tab (offline banner)
 - [ ] **CI/CD** — GitHub Actions workflows for mobile type-check and backend tests
+- [ ] **Auth screens dark mode** — `login.tsx`, `register.tsx`, `onboarding.tsx`, `verify-email.tsx` (already navy bg, low priority)
 
 ---
 

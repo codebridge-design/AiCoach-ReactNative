@@ -18,7 +18,7 @@ router.post('/', authMiddleware, validate(CreateSessionSchema), async (req: any,
     .select().single();
   if (error) { res.status(400).json({ error: error.message }); return; }
 
-  const q = await generateQuestion({ role: profile?.role ?? 'general', level: profile?.level ?? 'junior', topic });
+  const q = await generateQuestion({ role: profile?.role ?? 'general', level: profile?.level ?? 'junior', topic, mode });
   const { data: question } = await supabase.from('questions').insert({
     session_id: session.id, topic, category: q.category,
     role: profile?.role ?? 'general', level: profile?.level ?? 'junior',
@@ -50,7 +50,7 @@ router.get('/:id', authMiddleware, async (req: any, res) => {
 
 router.patch('/:id/end', authMiddleware, validate(EndSessionSchema), async (req: any, res) => {
   const { duration_seconds } = req.body;
-  const { data: answers } = await supabase.from('answers').select('score').eq('session_id', req.params.id).not('score', 'is', null);
+  const { data: answers } = await supabase.from('answers').select('score, question_id').eq('session_id', req.params.id).not('score', 'is', null);
   const scores = (answers ?? []).map((a: any) => a.score);
   const total_score = scores.length ? scores.reduce((a: number, b: number) => a + b, 0) / scores.length : null;
 
@@ -58,6 +58,13 @@ router.patch('/:id/end', authMiddleware, validate(EndSessionSchema), async (req:
     .update({ status: 'completed', total_score, duration_seconds, ended_at: new Date().toISOString() })
     .eq('id', req.params.id).eq('user_id', req.userId).select().single();
   if (error) { res.status(400).json({ error: error.message }); return; }
+
+  const highScoringIds = (answers ?? [])
+    .filter((a: any) => a.score >= 7.0 && a.question_id)
+    .map((a: any) => a.question_id as string);
+  if (highScoringIds.length > 0) {
+    await supabase.from('questions').update({ is_template: true }).in('id', highScoringIds);
+  }
 
   await upsertDailySnapshot(req.userId);
   res.json({ session });

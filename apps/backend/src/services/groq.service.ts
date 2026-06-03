@@ -1,5 +1,5 @@
 import { groq, GROQ_MODELS, GROQ_DEFAULTS } from '../lib/groq';
-import type { UserRole, DifficultyLevel, TopicKey, QuestionCategory, AnswerFeedback } from '@mockly/shared';
+import type { UserRole, DifficultyLevel, TopicKey, QuestionCategory, AnswerFeedback, SessionMode } from '@mockly/shared';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -25,11 +25,27 @@ Response format:
   "key_concepts": ["concept1", "concept2"]
 }`;
 
+const TOPIC_LABELS: Record<string, string> = {
+  react:          'React (hooks, state, lifecycle, performance)',
+  javascript:     'JavaScript (core language, closures, async, prototypes)',
+  react_native:   'React Native (mobile dev, navigation, platform APIs)',
+  system_design:  'System Design (architecture, scalability, databases, APIs)',
+  behavioral:     'Behavioral / soft skills (STAR format, teamwork, conflict)',
+  mixed:          'a varied topic — pick one of: React, JavaScript, React Native, system design, or behavioral',
+};
+
+const MODE_INSTRUCTIONS: Record<string, string> = {
+  rapid: 'RAPID DRILL mode: ask a short, concept-focused question answerable in 1-2 sentences. Prefer definitions, comparisons, or "what does X do" style. No long open-ended design questions.',
+  voice: 'VOICE mode: ask a clear, well-scoped question suitable for a spoken answer (1-3 minutes).',
+  text:  'TEXT mode: ask a thorough question that allows a detailed written answer.',
+};
+
 export async function generateQuestion(params: {
   role: UserRole;
   level: DifficultyLevel;
   topic: TopicKey;
-  previousTopics?: string[];
+  mode?: SessionMode;
+  previousQuestions?: string[];
   lastScore?: number;
 }): Promise<{ text: string; category: QuestionCategory; estimated_answer_minutes: number; key_concepts: string[] }> {
   const difficulty =
@@ -37,8 +53,17 @@ export async function generateQuestion(params: {
     params.lastScore < 4 ? 'simpler' :
     params.lastScore > 7 ? 'harder' : 'similar difficulty';
 
-  const userMsg = `Generate a ${difficulty} ${params.level} ${params.role} developer interview question about ${params.topic}.
-Previously asked topics to avoid: ${(params.previousTopics ?? []).join(', ') || 'none'}.`;
+  const topicLabel = TOPIC_LABELS[params.topic] ?? params.topic;
+  const modeNote = params.mode ? (MODE_INSTRUCTIONS[params.mode] ?? '') : '';
+  const prevNote = params.previousQuestions?.length
+    ? `Already asked (do NOT repeat or closely overlap):\n${params.previousQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+    : '';
+
+  const userMsg = [
+    `Generate a ${difficulty} ${params.level} ${params.role} developer interview question about ${topicLabel}.`,
+    modeNote,
+    prevNote,
+  ].filter(Boolean).join('\n');
 
   const completion = await groq.chat.completions.create({
     model: GROQ_MODELS.question,

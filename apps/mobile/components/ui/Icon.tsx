@@ -7,7 +7,8 @@ export type IconName =
   | 'x' | 'arrowUp' | 'arrowRight' | 'clock' | 'settings' | 'mic'
   | 'message' | 'zap' | 'code' | 'target' | 'flame' | 'sparkle'
   | 'play' | 'skip' | 'send' | 'book' | 'layers' | 'trend'
-  | 'award' | 'edit' | 'moon' | 'logout' | 'refresh';
+  | 'award' | 'edit' | 'moon' | 'logout' | 'refresh'
+  | 'bookmark' | 'bookmarkFilled' | 'info';
 
 interface IconProps {
   name: IconName;
@@ -98,6 +99,12 @@ export function Icon({ name, size = 22, color = 'currentColor', strokeWidth = 1.
       return <Svg {...props}><Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><Path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></Svg>;
     case 'search':
       return <Svg {...props}><Circle cx="11" cy="11" r="7" stroke={color} strokeWidth={strokeWidth} fill="none"/><Path d="m21 21-4.3-4.3"/></Svg>;
+    case 'bookmark':
+      return <Svg {...props}><Path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke={color} strokeWidth={strokeWidth} fill="none"/></Svg>;
+    case 'bookmarkFilled':
+      return <Svg {...props}><Path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" stroke={color} strokeWidth={strokeWidth} fill={color}/></Svg>;
+    case 'info':
+      return <Svg {...props}><Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={strokeWidth} fill="none"/><Line x1="12" y1="8" x2="12" y2="8.5" stroke={color} strokeWidth={strokeWidth + 0.5}/><Line x1="12" y1="12" x2="12" y2="16" stroke={color} strokeWidth={strokeWidth}/></Svg>;
     default:
       return null;
   }

@@ -21,7 +21,7 @@ export default function VerifyEmailScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const handleVerify = async () => {
-    if (code.length !== 6) { setError('Enter the 6-digit code from the email'); return; }
+    if (code.length < 6) { setError('Enter the full code from the email'); return; }
     setLoading(true);
     setError('');
     const { error: err } = await supabase.auth.verifyOtp({
@@ -55,7 +55,7 @@ export default function VerifyEmailScreen() {
         </View>
         <Text style={styles.title}>Check your email</Text>
         <Text style={styles.subtitle}>
-          We sent a 6-digit code to{'\n'}
+          We sent a verification code to{'\n'}
           <Text style={styles.emailText}>{email}</Text>
         </Text>
       </View>
@@ -65,9 +65,9 @@ export default function VerifyEmailScreen() {
         <TextInput
           ref={inputRef}
           value={code}
-          onChangeText={v => { setCode(v.replace(/\D/g, '').slice(0, 6)); setError(''); }}
+          onChangeText={v => { setCode(v.replace(/\D/g, '').slice(0, 8)); setError(''); }}
           keyboardType="number-pad"
-          maxLength={6}
+          maxLength={8}
           autoFocus
           style={styles.hiddenInput}
         />
@@ -75,7 +75,7 @@ export default function VerifyEmailScreen() {
         <Text style={styles.label}>Enter verification code</Text>
 
         <TouchableOpacity activeOpacity={1} onPress={() => inputRef.current?.focus()} style={styles.digitsRow}>
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 8 }).map((_, i) => (
             <View
               key={i}
               style={[
@@ -102,7 +102,7 @@ export default function VerifyEmailScreen() {
           {loading
             ? <ActivityIndicator color={Colors.blue800} />
             : (
-              <Button full size="lg" onPress={handleVerify} disabled={code.length !== 6}>
+              <Button full size="lg" onPress={handleVerify} disabled={code.length < 6}>
                 Verify email
               </Button>
             )
@@ -151,16 +151,16 @@ const styles = StyleSheet.create({
     position: 'absolute', width: 1, height: 1, opacity: 0,
   },
   label: { fontFamily: Font.bold, fontSize: 13, color: Colors.n100 },
-  digitsRow: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
+  digitsRow: { flexDirection: 'row', gap: 5, justifyContent: 'center' },
   digitBox: {
-    width: 44, height: 52, borderRadius: 10,
+    width: 36, height: 48, borderRadius: 9,
     borderWidth: 1.5, borderColor: Colors.n30,
     backgroundColor: Colors.n10,
     alignItems: 'center', justifyContent: 'center',
   },
   digitBoxFilled: { borderColor: Colors.blue700, backgroundColor: Colors.white },
   digitBoxActive: { borderColor: Colors.blue700, borderWidth: 2 },
-  digitText: { fontFamily: Font.bold, fontSize: 22, color: Colors.n100 },
+  digitText: { fontFamily: Font.bold, fontSize: 20, color: Colors.n100 },
   error: { fontFamily: Font.regular, fontSize: 13, color: Colors.red, textAlign: 'center' },
   resentBanner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

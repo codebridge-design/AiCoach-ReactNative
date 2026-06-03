@@ -11,7 +11,7 @@ export const UpdateProfileSchema = z.object({
 });
 
 export const CreateProfileSchema = z.object({
-  full_name: z.string().min(1).max(100),
+  full_name: z.string().min(1).max(100).optional(),
   role: UserRoleSchema,
   level: DifficultyLevelSchema,
 });

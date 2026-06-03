@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { errorMiddleware } from './middleware/error.middleware';
+import { logger } from './lib/logger';
 import authRoutes from './routes/auth.routes';
 import sessionsRoutes from './routes/sessions.routes';
 import questionsRoutes from './routes/questions.routes';
@@ -11,6 +12,14 @@ const app = express();
 
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*' }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    logger.info(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+  });
+  next();
+});
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

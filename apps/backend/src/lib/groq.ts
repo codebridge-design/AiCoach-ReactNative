@@ -5,8 +5,8 @@ if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is required');
 export const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export const GROQ_MODELS = {
-  question:  'llama-3.1-70b-versatile',
-  feedback:  'llama-3.1-70b-versatile',
+  question:  'llama-3.3-70b-versatile',
+  feedback:  'llama-3.3-70b-versatile',
   followup:  'llama-3.1-8b-instant',
   rapid:     'llama-3.1-8b-instant',
   whisper:   'whisper-large-v3',
