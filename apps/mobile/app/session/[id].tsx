@@ -7,7 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { ScoreBar } from '../../components/ui/ScoreBar';
-import { scoreColor, scoreLabel } from '../../lib/score';
+import { scoreColor, scoreLabel } from '../../utils/score';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiPost, apiPatch } from '../../lib/api';
 import { useTheme } from '../../lib/theme';
 import type { Question, AnswerFeedback } from '@mockly/shared';
@@ -17,6 +18,7 @@ type Phase = 'answering' | 'analyzing' | 'feedback';
 export default function InterviewScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const queryClient = useQueryClient();
   const { id: sessionId, mode, topic, count, firstQuestion: firstQuestionRaw } = useLocalSearchParams<{
     id: string; mode: string; topic: string; count: string; firstQuestion: string;
   }>();
@@ -48,18 +50,27 @@ export default function InterviewScreen() {
     if (!currentQuestion || !sessionId) return;
     setIsSubmitting(true);
     setPhase('analyzing');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
     try {
-      const res = await apiPost<{ answer: { id: string }; feedback: AnswerFeedback }>('/api/answers', {
-        session_id: sessionId,
-        question_id: currentQuestion.id,
-        text: answer,
-      });
+      const res = await apiPost<{ answer: { id: string }; feedback: AnswerFeedback }>(
+        '/api/answers',
+        { session_id: sessionId, question_id: currentQuestion.id, text: answer },
+        controller.signal,
+      );
       setFeedback(res.feedback);
       setPhase('feedback');
-    } catch {
-      Alert.alert('Error', 'Failed to submit answer. Please try again.');
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        Alert.alert('Timeout', 'Request took too long. Please check your connection and try again.');
+      } else {
+        Alert.alert('Error', 'Failed to submit answer. Please try again.');
+      }
       setPhase('answering');
     } finally {
+      clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   }
@@ -97,6 +108,8 @@ export default function InterviewScreen() {
         `/api/sessions/${sessionId}/end`,
         { duration_seconds: seconds }
       );
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
       const valid = finalScores.filter(s => s != null) as number[];
       const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : (res.session.total_score ?? 0);
       router.replace({

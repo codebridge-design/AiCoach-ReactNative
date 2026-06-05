@@ -4,9 +4,9 @@ import { WebSocketServer } from 'ws';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import app from './app';
-import { logger } from './lib/logger';
+import { logger } from './config/logger';
 import { streamFeedback } from './services/groq.service';
-import { supabase } from './lib/supabase';
+import { supabase } from './config/supabase';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const server = http.createServer(app);

@@ -6,8 +6,8 @@ import { Icon } from '../../components/ui/Icon';
 import { Card } from '../../components/ui/Card';
 import { ScoreRing } from '../../components/ui/ScoreRing';
 import { SectionHeader } from '../../components/ui/SectionHeader';
-import { scoreColor, scoreLabel } from '../../lib/score';
-import { useAnalyticsSummary, useAnalyticsHistory, useWeakTopics } from '../../lib/hooks';
+import { scoreColor, scoreLabel } from '../../utils/score';
+import { useAnalyticsSummary, useAnalyticsHistory, useWeakTopics } from '../../hooks';
 import { useTheme } from '../../lib/theme';
 
 const TOPIC_LABELS: Record<string, string> = {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import { Font } from '../../constants/typography';
-import { scoreColor } from '../../lib/score';
+import { scoreColor } from '../../utils/score';
 import { useTheme } from '../../lib/theme';
 
 interface ScoreBarProps {

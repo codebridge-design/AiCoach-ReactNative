@@ -7,9 +7,9 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { ScoreRing } from '../../components/ui/ScoreRing';
 import { SectionHeader } from '../../components/ui/SectionHeader';
-import { scoreColor } from '../../lib/score';
+import { scoreColor } from '../../utils/score';
 import { useAuthStore } from '../../stores/authStore';
-import { useAnalyticsSummary, useSessions, useWeakTopics } from '../../lib/hooks';
+import { useAnalyticsSummary, useSessions, useWeakTopics } from '../../hooks';
 import { useTheme } from '../../lib/theme';
 import type { Session } from '@mockly/shared';
 

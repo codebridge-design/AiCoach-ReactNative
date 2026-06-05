@@ -8,7 +8,7 @@ import { ListRow } from '../../components/ui/ListRow';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { useAnalyticsSummary } from '../../lib/hooks';
+import { useAnalyticsSummary } from '../../hooks';
 import { useTheme } from '../../lib/theme';
 
 function getInitials(name: string | null): string {

@@ -5,7 +5,7 @@ import { Font } from '../constants/typography';
 import { Icon } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { Chip } from '../components/ui/Chip';
-import { useQuestionBank } from '../lib/hooks';
+import { useQuestionBank } from '../hooks';
 import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../lib/theme';
 import type { Question, TopicKey } from '@mockly/shared';

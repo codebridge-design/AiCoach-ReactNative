@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiGet } from './api';
+import { apiGet } from '../lib/api';
 import type { Profile, AnalyticsSummary, AnalyticsSnapshot, WeakTopic, Session, Question } from '@mockly/shared';
 
 export function useProfile() {

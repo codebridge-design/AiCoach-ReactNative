@@ -6,7 +6,7 @@ import { Icon } from '../../../components/ui/Icon';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { ScoreRing } from '../../../components/ui/ScoreRing';
-import { scoreColor, scoreLabel } from '../../../lib/score';
+import { scoreColor, scoreLabel } from '../../../utils/score';
 import { useTheme } from '../../../lib/theme';
 
 const TOPIC_LABELS: Record<string, string> = {

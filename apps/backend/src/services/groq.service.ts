@@ -1,4 +1,4 @@
-import { groq, GROQ_MODELS, GROQ_DEFAULTS } from '../lib/groq';
+import { groq, GROQ_MODELS, GROQ_DEFAULTS } from '../config/groq';
 import type { UserRole, DifficultyLevel, TopicKey, QuestionCategory, AnswerFeedback, SessionMode } from '@mockly/shared';
 
 // ─── Helpers ──────────────────────────────────────────────────

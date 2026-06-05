@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { errorMiddleware } from './middleware/error.middleware';
-import { logger } from './lib/logger';
+import { logger } from './config/logger';
 import authRoutes from './routes/auth.routes';
 import sessionsRoutes from './routes/sessions.routes';
 import questionsRoutes from './routes/questions.routes';

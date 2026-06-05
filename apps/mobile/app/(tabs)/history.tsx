@@ -3,8 +3,8 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SectionList, Acti
 import { Font } from '../../constants/typography';
 import { Icon } from '../../components/ui/Icon';
 import { Chip } from '../../components/ui/Chip';
-import { scoreColor } from '../../lib/score';
-import { useSessions } from '../../lib/hooks';
+import { scoreColor } from '../../utils/score';
+import { useSessions } from '../../hooks';
 import { useTheme } from '../../lib/theme';
 import type { Session } from '@mockly/shared';
 
